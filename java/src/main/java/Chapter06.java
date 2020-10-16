@@ -169,6 +169,8 @@ public class Chapter06 {
         for (int i = 0; i < 3; i++) {
             assert acquireFairSemaphore(conn, "testsem", 3, 1000) != null;
         }
+        System.out.println("Refresh semaphore...");
+        refreshFairSemaphore(conn,"testsem",id);
         System.out.println("We got them!");
         conn.del("testsem", "testsem:owner", "testsem:counter");
     }
@@ -527,6 +529,28 @@ public class Chapter06 {
         trans.zrem(semname + ":owner", identifier);
         List<Object> results = trans.exec();
         return (Long)results.get(results.size() - 1) == 1;
+    }
+
+    public boolean refreshFairSemaphore(Jedis conn, String semname, String identifier){
+        long now = System.currentTimeMillis();
+        Long zadd = conn.zadd(semname, now, identifier);
+        if(zadd == 0){
+            releaseFairSemaphore(conn,semname,identifier);
+            return false;
+        }else{
+            return true;
+        }
+    }
+
+    public void acquireSemaphoreWithLock(Jedis conn,String semname,int limit,long timeout){
+        String identifier = acquireLock(conn, semname, Math.round(0.01));
+        if(identifier !=null){
+            try {
+                acquireFairSemaphore(conn,semname,limit,timeout);
+            }finally {
+                releaseLock(conn,semname,identifier);
+            }
+        }
     }
 
     public String executeLater(
